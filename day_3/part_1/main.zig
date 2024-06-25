@@ -78,30 +78,27 @@ pub fn main() !void {
 
         var i: u8 = 0;
 
+        print("{s}", .{line});
+
         while (i < line.len) : (i += 1) {
             if (std.ascii.isDigit(line[i])) {
                 if (test_adjacency(i, null, line, iter.peek())) {
-                    if (i < line.len) {
-                        if (i < line.len - 1) {}
+                    const start: u8 = i;
+                    var end = i;
+                    // var number_buffer = [1]u8{'_'} ** 5;
+                    while (std.ascii.isDigit(line[i])) : (i += 1) {
+                        // number_buffer[j] = line[i];
+                        end += 1;
                     }
-                    if (std.ascii.isDigit(line[i + 1])) {
-                        if (std.ascii.isDigit(line[i + 2])) {
-                            sum += try std.fmt.parseInt(u8, line[i .. i + 2], 10);
-                            i += 2;
-                            continue;
-                        } else {
-                            sum += try std.fmt.parseInt(u8, line[i .. i + 1], 10);
-                            i += 1;
-                            continue;
-                        }
-                    } else {
-                        sum += try std.fmt.parseInt(u8, line[i .. i + 1], 10);
-                        // i += 1;
-                        continue;
-                    }
+                    // print("Number buffer: {s}\n", .{number_buffer});
+                    print("Sum before addition: {d}\n", .{sum});
+                    print("Part number: {s}\n", .{line[start..end]});
+                    // print("Part Number: {d}\n", .{try std.fmt.parseInt(usize, line[start..end], 10)});
+                    sum += try std.fmt.parseInt(usize, line[start..end], 10);
                 }
             }
         }
+        print("Sum: {d}\n", .{sum});
     }
-    print("Sum: {d}", .{sum});
+    print("Sum: {d}\n", .{sum});
 }
