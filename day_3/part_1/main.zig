@@ -78,17 +78,25 @@ pub fn main() !void {
 
         var i: u8 = 0;
 
-        while (line[i] != '\n') : (i += 1) {
+        while (i < line.len) : (i += 1) {
             if (std.ascii.isDigit(line[i])) {
-                if (test_adjacency(i, null, line, iter.peek())) {}
-                if (std.ascii.isDigit(line[i + 1])) {
-                    if (std.ascii.isDigit(line[i + 2])) {
-                        sum += try std.fmt.parseInt(u8, line[i .. i + 2], 10);
-                        i += 2;
-                        continue;
+                if (test_adjacency(i, null, line, iter.peek())) {
+                    if (i < line.len) {
+                        if (i < line.len - 1) {}
+                    }
+                    if (std.ascii.isDigit(line[i + 1])) {
+                        if (std.ascii.isDigit(line[i + 2])) {
+                            sum += try std.fmt.parseInt(u8, line[i .. i + 2], 10);
+                            i += 2;
+                            continue;
+                        } else {
+                            sum += try std.fmt.parseInt(u8, line[i .. i + 1], 10);
+                            i += 1;
+                            continue;
+                        }
                     } else {
                         sum += try std.fmt.parseInt(u8, line[i .. i + 1], 10);
-                        i += 1;
+                        // i += 1;
                         continue;
                     }
                 }
