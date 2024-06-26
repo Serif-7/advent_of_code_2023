@@ -118,6 +118,7 @@ pub fn main() !void {
             }
         }
         prev_line = line;
+        print("Sum: {d}\n", .{sum});
     }
-    print("Sum: {d}", .{sum});
+    print("Sum: {d}\n", .{sum});
 }
