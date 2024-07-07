@@ -1,48 +1,76 @@
 const std = @import("std");
 const print = std.debug.print;
 
-fn proc_line(line: []const u8, line_array_len: u8) !usize {
+// const FixedList = struct {
+//     items: undefined,
+//     len: usize,
+//     T: undefined,
+
+//     pub fn init(size: usize, T: anytype) FixedList {
+//         return FixedList{
+//             .items = [size]T,
+//             .T = @TypeOf(T),
+//         };
+//     }
+
+//     pub fn append(self: FixedList, elem: @TypeOf(self.T)) void {
+//         if (self.len == self.items.len) {
+//             //panic
+//         }
+//         self.items[self.len] = elem;
+//     }
+// };
+
+// pub fn FixedArrayList(comptime T: type) type {
+//     return struct {
+//         const Self = @This();
+//         items: []T,
+//         len: usize = 0,
+
+//         pub fn init(size: usize) void {
+//             return Self{
+//                 .items = [size]T,
+//             };
+
+//         pub fn append(elem: T) void {
+//             if (len = items.len) {
+
+//             }
+//             items[len] = elem;
+//         }
+//     }
+
+//     };
+// }
+
+// get card ID and number of winning numbers from line
+fn get_win_numbers_and_id(line: []const u8) !struct { usize, usize } {
+    var sum: usize = 0;
     var card_id: usize = 0;
-    var copies: u8 = 0;
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const alloc = gpa.allocator();
-
-    var win_numbers = std.ArrayList(u8).init(alloc);
-    defer win_numbers.deinit();
-    var player_numbers = std.ArrayList(u8).init(alloc);
-    defer player_numbers.deinit();
-
-    var tok_iter = std.mem.tokenizeScalar(u8, line, " ");
+    var iter = std.mem.tokenizeScalar(u8, line, ' ');
 
     var fst_section = true;
 
-    //process line
-    while (tok_iter.next()) |token| {
-        if (tok_iter.peek() == null) {
-            for (player_numbers.items) |p| {
+    var win_numbers = try std.BoundedArray(u8, 30).init(30);
+    var player_numbers = try std.BoundedArray(u8, 30).init(30);
+
+    while (iter.next()) |token| {
+        if (iter.peek() == null) {
+            for (player_numbers.buffer) |p| {
                 // print("p: {d}\n", .{p});
-                for (win_numbers.items) |w| {
+                for (win_numbers.buffer) |w| {
                     if (p == w) {
                         // print("Hit! {d},{d}\n", .{ w, p });
 
                         //recursive call
-                        proc_line(lines.items[card_id + 1])
-                        copies += 1;
+                        // proc_line(lines.items[card_id + 1])
+                        sum += 1;
                     }
                 }
             }
-            //clear lists
-            win_numbers.clearAndFree();
-            player_numbers.clearAndFree();
-            fst_section = true;
             break;
         }
-        // if (std.mem.eql(u8, token, "Card")) {
-        //     print("\n", .{});
-        // }
-        // print("{s} ", .{token});
-
         if (std.mem.endsWith(u8, token, ":")) {
             card_id = try std.fmt.parseInt(usize, token[0 .. token.len - 1], 10);
             continue;
@@ -61,10 +89,39 @@ fn proc_line(line: []const u8, line_array_len: u8) !usize {
             }
         }
     }
+
+    return .{
+        card_id,
+        sum,
+    };
+}
+
+//returns the number of copies a card generates
+
+//a copy of a card shares it's ID with it's original
+fn get_number_of_copies(card_id: usize, cards: std.ArrayList([]const u8), index: usize) !usize {
+    // var card_id: usize = 0;
+    var sum: usize = 0;
+
+    //[0] is card_id, [1] is win_numbers: usize
+    const tup = try get_win_numbers_and_id(cards.items[index]);
+
+    if (tup[1] == 0) return 0;
+
+    const copies = tup[1];
+
+    for (0..copies) |i| {
+        if (index + i > cards.items.len - 1) {
+            continue;
+        }
+        sum += try get_number_of_copies(card_id, cards, index + i);
+    }
+
+    return sum;
 }
 
 pub fn main() !void {
-    const file = try std.fs.cwd().openFile("input.txt", .{});
+    const file = try std.fs.cwd().openFile("test_input.txt", .{});
     defer file.close();
     // const fba = std.heap.FixedBufferAllocator.init(&mem);
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -83,11 +140,11 @@ pub fn main() !void {
         if (iter.peek() == null) {
             break;
         }
-        lines.append(line);
+        try lines.append(line);
     }
 
-    for (lines) |line| {
-        sum += proc_line(line, lines.items.len);
+    for (0..lines.items.len) |i| {
+        sum += try get_number_of_copies(i + 1, lines, i);
     }
 
     print("Sum: {s}\n", .{sum});
