@@ -1,6 +1,9 @@
 const std = @import("std");
 const print = std.debug.print;
 
+// lessons
+// var loc: usize = std.math.maxInt(usize);
+
 pub fn main() !void {
     const buf = @embedFile("input.txt");
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -9,19 +12,22 @@ pub fn main() !void {
 
     var iter = std.mem.splitSequence(u8, buf, "\n\n");
 
+    // set up seed ranges
     const seed_line = iter.next().?;
-
-    var seed_ranges = std.ArrayList(usize).init(alloc);
+    var seed_ranges = std.ArrayList(struct { start: usize, len: usize }).init(alloc);
     defer seed_ranges.clearAndFree();
     var seed_iter = std.mem.splitScalar(u8, seed_line, ' ');
     while (seed_iter.next()) |seed| {
         if (std.ascii.isAlphabetic(seed[0])) {
             continue;
         }
-        try seed_ranges.append(try std.fmt.parseInt(usize, seed, 10));
-    }
-    var maps = std.ArrayList(RangeMap).init(alloc);
 
+        const start: usize = try std.fmt.parseInt(usize, seed, 10);
+        const len: usize = try std.fmt.parseInt(usize, seed_iter.next().?, 10);
+        try seed_ranges.append(.{ .start = start, .len = len });
+    }
+
+    var maps = std.ArrayList(RangeMap).init(alloc);
     while (iter.next()) |lines| {
         if (iter.peek() == null) {
             break;
@@ -54,15 +60,28 @@ pub fn main() !void {
     // const humidity_to_location: RangeMap = maps.items[6];
 
     //find lowest location number corresponding to initial seed list
+    // var location_numbers = std.ArrayList(usize).init(alloc);
+    // defer location_numbers.clearAndFree();
 
-    for (seed_ranges.items) |seed| {
-        var n = seed;
-        for (maps.items) |map| {
-            n = map.convert(n);
+    var loc: usize = std.math.maxInt(usize);
+
+    for (seed_ranges.items) |range| {
+        var n: usize = undefined;
+        for (range.start..(range.start + range.len)) |seed| {
+            n = seed;
+            for (maps.items) |map| {
+                n = map.convert(n);
+            }
+            print("Converted Seed number to Location number: {d}\n", .{n});
+            if (n < loc) {
+                loc = n;
+            }
         }
 
-        print("Converted Seed number to Location number: {d}\n", .{n});
+        // print("Converted Seed number to Location number: {d}\n", .{n});
     }
+
+    print("Lowest Location Number: {d}\n", .{loc});
 }
 
 const RangeMap = struct {
