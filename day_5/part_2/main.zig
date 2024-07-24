@@ -5,7 +5,7 @@ const print = std.debug.print;
 // var loc: usize = std.math.maxInt(usize);
 
 pub fn main() !void {
-    const buf = @embedFile("input.txt");
+    const buf = @embedFile("test_input.txt");
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const alloc = gpa.allocator();
     defer _ = gpa.deinit();
@@ -14,7 +14,7 @@ pub fn main() !void {
 
     // set up seed ranges
     const seed_line = iter.next().?;
-    var seed_ranges = std.ArrayList(struct { start: usize, len: usize }).init(alloc);
+    var seed_ranges = std.ArrayList(Range).init(alloc);
     defer seed_ranges.clearAndFree();
     var seed_iter = std.mem.splitScalar(u8, seed_line, ' ');
     while (seed_iter.next()) |seed| {
@@ -24,7 +24,7 @@ pub fn main() !void {
 
         const start: usize = try std.fmt.parseInt(usize, seed, 10);
         const len: usize = try std.fmt.parseInt(usize, seed_iter.next().?, 10);
-        try seed_ranges.append(.{ .start = start, .len = len });
+        try seed_ranges.append(Range.init(start, len));
     }
 
     var maps = std.ArrayList(RangeMap).init(alloc);
@@ -63,26 +63,65 @@ pub fn main() !void {
     // var location_numbers = std.ArrayList(usize).init(alloc);
     // defer location_numbers.clearAndFree();
 
-    var loc: usize = std.math.maxInt(usize);
+    // var loc: usize = std.math.maxInt(usize);
+
+    // for (seed_ranges.items) |range| {
+    //     var n: usize = undefined;
+    //     for (range.start..(range.start + range.len)) |seed| {
+    //         n = seed;
+    //         for (maps.items) |map| {
+    //             n = map.convert(n);
+    //         }
+    //         print("Converted Seed number to Location number: {d}\n", .{n});
+    //         if (n < loc) {
+    //             loc = n;
+    //         }
+    //     }
+
+    //     // print("Converted Seed number to Location number: {d}\n", .{n});
+    // }
+
+    // var r: @TypeOf(seed_ranges.items[0]) = undefined;
+
+    // logic: each seed range, upon going through the appropriate
+    // map, is split into two or more ranges.
 
     for (seed_ranges.items) |range| {
-        var n: usize = undefined;
-        for (range.start..(range.start + range.len)) |seed| {
-            n = seed;
-            for (maps.items) |map| {
-                n = map.convert(n);
-            }
-            print("Converted Seed number to Location number: {d}\n", .{n});
-            if (n < loc) {
-                loc = n;
-            }
+        var r = range;
+
+        for (maps.items) |map| {
+            r = map.convert_range(r.start, r.len);
         }
 
-        // print("Converted Seed number to Location number: {d}\n", .{n});
+        print("Converted Range: Start: {d}, End: {d}\n", .{ r.start, r.len });
+    }
+}
+
+const Range = struct {
+    start: usize,
+    // dest: usize,
+    end: usize,
+
+    pub fn init(start: usize, len: usize) Range {
+        return Range{
+            .start = start,
+            .end = start + (len - 1),
+        };
     }
 
-    print("Lowest Location Number: {d}\n", .{loc});
-}
+    // test if a number falls in the src range
+    // pub fn convertable(self: Range, n: usize) bool {
+
+    // }
+
+    // pub fn convert(self: Range, n: usize) usize {
+    //     if ((n >= self.src) and (n < (self.src + self.len))) {
+    //         return self.dest + (n - self.src);
+    //     } else {
+    //         return n;
+    //     }
+    // }
+};
 
 const RangeMap = struct {
     alloc: std.mem.Allocator,
@@ -146,7 +185,7 @@ const RangeMap = struct {
         // std.mem.Allocator.free(self.alloc, self.start);
     }
 
-    //convert a number through the appropriate range
+    // convert a number through the appropriate range
     pub fn convert(self: RangeMap, n: usize) usize {
         for (0..self.src.len) |i| {
             if ((n >= self.src[i]) and (n < (self.src[i] + self.length[i]))) {
@@ -155,6 +194,26 @@ const RangeMap = struct {
         }
 
         return n;
+    }
+
+    // convert a range through the map
+    // favor the lower range
+    // TODO: Return both ranges
+    pub fn convert_range(self: RangeMap, start: usize, length: usize) Range {
+        for (0..self.src.len) |i| {
+            // if the start of the range falls in an iterated src range, return new range
+            if (start >= self.src[i]) {
+                // var snd: usize = undefined;
+                // if (length >= self.length[i]) {
+                //     snd = self.length[i];
+                // } else {
+                //     snd = self.dest[i] + length;
+                // }
+                return Range.init(self.dest[i] + start, ((start + length) - 1) + self.dest[i]);
+            }
+        }
+
+        return Range.init(start, length);
     }
 
     pub fn print(self: RangeMap) void {

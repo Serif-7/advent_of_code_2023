@@ -7,7 +7,7 @@ pub fn main() !void {
     var iter = std.mem.splitScalar(u8, buf, '\n');
 
     while (iter.next()) |line| {
-        if (iter.peek() == null) {
+        if (std.mem.eql(u8, line, "")) {
             break;
         }
 
