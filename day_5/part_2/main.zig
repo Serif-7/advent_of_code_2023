@@ -41,9 +41,6 @@ pub fn main() !void {
         try maps.append(try RangeMap.init(lines, alloc));
     }
 
-    // const n = maps.items[0].convert(53);
-    // print("Converted number: {d}\n", .{n});
-
     defer {
         for (maps.items) |map| {
             map.deinit();
@@ -51,52 +48,36 @@ pub fn main() !void {
         maps.clearAndFree();
     }
 
-    // const seed_to_soil: RangeMap = maps.items[0];
-    // const soil_to_fertilizer: RangeMap = maps.items[1];
-    // const fertilizer_to_water: RangeMap = maps.items[2];
-    // const water_to_light: RangeMap = maps.items[3];
-    // const light_to_temperature: RangeMap = maps.items[4];
-    // const temperature_to_humidity: RangeMap = maps.items[5];
-    // const humidity_to_location: RangeMap = maps.items[6];
-
-    //find lowest location number corresponding to initial seed list
-    // var location_numbers = std.ArrayList(usize).init(alloc);
-    // defer location_numbers.clearAndFree();
-
-    // var loc: usize = std.math.maxInt(usize);
-
-    // for (seed_ranges.items) |range| {
-    //     var n: usize = undefined;
-    //     for (range.start..(range.start + range.len)) |seed| {
-    //         n = seed;
-    //         for (maps.items) |map| {
-    //             n = map.convert(n);
-    //         }
-    //         print("Converted Seed number to Location number: {d}\n", .{n});
-    //         if (n < loc) {
-    //             loc = n;
-    //         }
-    //     }
-
-    //     // print("Converted Seed number to Location number: {d}\n", .{n});
-    // }
-
-    // var r: @TypeOf(seed_ranges.items[0]) = undefined;
-
-    // logic: each seed range, upon going through the appropriate
-    // map, is split into two or more ranges.
-
-    for (seed_ranges.items) |range| {
-        var r = range;
+    //
+    for (seed_ranges.items) |seed_range| {
+        var range_list = std.BoundedArray(Range, 500){};
+        range_list.appendAssumeCapacity(seed_range);
+        var range_list_ptr: *std.BoundedArray(Range, 500) = &range_list;
 
         for (maps.items) |map| {
-            r = map.convert_range(r.start, r.len);
+            var new_list = std.BoundedArray(Range, 500){};
+            
+            for (range_list_ptr.*) |range| {
+                new_list.appendAssumeCapacity(map.convert_range(range));
+            }
+            range_list_ptr.*.clearAndFree();
+            range_list_ptr = &new_list;
         }
 
-        print("Converted Range: Start: {d}, End: {d}\n", .{ r.start, r.len });
+        //find lowest range bound
+        for (range_list_ptr.*) |range| {
+            var low: usize = std.math.maxInt(usize);
+            if (range.start < low) {
+                low = range.start;
+            }
+        }
+        print("Lowest location number: {d}\n", .{low});
+
+        // print("Converted Range: Start: {d}, End: {d}\n", .{ r.start, r.len });
     }
 }
 
+// end inclusive range
 const Range = struct {
     start: usize,
     // dest: usize,
@@ -126,10 +107,11 @@ const Range = struct {
 const RangeMap = struct {
     alloc: std.mem.Allocator,
     name: []const u8,
+    map: std.ArrayHashMap(Range, Range),
     //index 0 corresponds to the first line, 1 to the 2nd, etc
-    src: []usize,
-    dest: []usize,
-    length: []usize,
+    // src: []usize,
+    // dest: []usize,
+    // length: []usize,
     lines: []const u8, //original lines (Debugging)
 
     pub fn init(lines: []const u8, alloc: std.mem.Allocator) !RangeMap {
@@ -139,78 +121,81 @@ const RangeMap = struct {
         if (iter.next()) |line| {
             name = line;
         }
-        var src_arr = std.ArrayList(usize).init(alloc);
-        var dest_arr = std.ArrayList(usize).init(alloc);
-        var length_arr = std.ArrayList(usize).init(alloc);
+        var map = std.AutoArrayHashMap(Range, Range).init(alloc);
 
         errdefer {
-            src_arr.clearAndFree();
-            dest_arr.clearAndFree();
-            length_arr.clearAndFree();
+            map.clearAndFree();
         }
-        // defer {
-        //     // src_arr.;
-        //     dest_arr.deinit();
-        //     start_arr.deinit();
-        // }
         while (iter.next()) |line| {
             var line_iter = std.mem.splitAny(u8, line, " \n");
 
+            var src_range = Range{.start = undefined, .end = undefined};
+            var dest_range = Range{.start = undefined, .end = undefined};
+
             if (line_iter.next()) |tok| {
-                try dest_arr.append(try std.fmt.parseInt(usize, tok, 10));
+                // try dest_arr.append(try std.fmt.parseInt(usize, tok, 10));
+                dest_range.start = try std.fmt.parseInt(usize, tok, 10);
             }
             if (line_iter.next()) |tok| {
-                try src_arr.append(try std.fmt.parseInt(usize, tok, 10));
+                // try src_arr.append(try std.fmt.parseInt(usize, tok, 10));
+                src_range.start = try std.fmt.parseInt(usize, tok, 10);
             }
             if (line_iter.next()) |tok| {
-                try length_arr.append(try std.fmt.parseInt(usize, tok, 10));
+                // try length_arr.append(try std.fmt.parseInt(usize, tok, 10));
+                dest_range.end = dest_range.start + (try std.fmt.parseInt(usize, tok, 10) - 1);
+                src_range.end = src_range.start + (try std.fmt.parseInt(usize, tok, 10) - 1);
             }
+
+            map.put(src_range, dest_range);
+            
         }
+
+
+        // for (0.. src_arr.items.len) |i| {
+        //     range_arr.appendAssumeCapacity(Range{.start = src_arr.items[i], .end = })
+        // }
 
         return RangeMap{
             .alloc = alloc,
             .lines = lines,
             .name = name,
-            .src = try src_arr.toOwnedSlice(),
-            .dest = try dest_arr.toOwnedSlice(),
-            .length = try length_arr.toOwnedSlice(),
+            .map = map,
         };
     }
 
     pub fn deinit(self: RangeMap) void {
-        self.alloc.free(self.src);
-        self.alloc.free(self.dest);
-        self.alloc.free(self.length);
+        self.map.clearAndFree();
         // std.mem.Allocator.free(self.alloc, self.dest);
         // std.mem.Allocator.free(self.alloc, self.start);
     }
 
     // convert a number through the appropriate range
-    pub fn convert(self: RangeMap, n: usize) usize {
-        for (0..self.src.len) |i| {
-            if ((n >= self.src[i]) and (n < (self.src[i] + self.length[i]))) {
-                return self.dest[i] + (n - self.src[i]);
-            }
-        }
+    // pub fn convert(self: RangeMap, n: usize) usize {
+    //     for (0..self.src.len) |i| {
+    //         if ((n >= self.src[i]) and (n < (self.src[i] + self.length[i]))) {
+    //             return self.dest[i] + (n - self.src[i]);
+    //         }
+    //     }
 
-        return n;
-    }
+    //     return n;
+    // }
 
-    // convert a range through the map
-    // favor the lower range
-    // TODO: Return both ranges
-    pub fn convert_range(self: RangeMap, start: usize, length: usize) Range {
-        for (0..self.src.len) |i| {
-            // if the start of the range falls in an iterated src range, return new range
-            if (start >= self.src[i]) {
-                // var snd: usize = undefined;
-                // if (length >= self.length[i]) {
-                //     snd = self.length[i];
-                // } else {
-                //     snd = self.dest[i] + length;
-                // }
-                return Range.init(self.dest[i] + start, ((start + length) - 1) + self.dest[i]);
+    // convert a range through the map, splitting if range falls into
+    // multiple transform ranges
+    // return a list with all ranges
+    pub fn convert_range(self: RangeMap, input_range: Range) std.ArrayList(Range) {
+        var range_list = std.BoundedArray(Range, 100){};
+        
+        for (self.map.keys()) |transform_range| {
+            // case 1: input range falls entirely in transform range
+            if (input_range.start >= transform_range.start and input_range.end < transform_range.end) {
+                var res = self.map.get(transform_range).?;
+                res.start = ();
+                
+                range_list.appendAssumeCapacity();
+                return range_list;
             }
+            // case 2: range overlaps
         }
 
         return Range.init(start, length);
