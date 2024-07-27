@@ -3,6 +3,8 @@ const print = std.debug.print;
 
 // lessons
 // var loc: usize = std.math.maxInt(usize);
+// local variables go out of scope, cant return a list from a function
+// pass in a pointer to a list or slice and modify it
 
 pub fn main() !void {
     const buf = @embedFile("test_input.txt");
@@ -51,27 +53,30 @@ pub fn main() !void {
     //
     for (seed_ranges.items) |seed_range| {
         // var range_list = std.BoundedArray(Range, 500){};
+
+        // the initial seed range may be split into multiple ranges
+        // therefore it is added to a list
         var range_list = std.ArrayList(Range).init(alloc);
         defer range_list.clearAndFree();
         try range_list.append(seed_range);
-        var range_list_ptr: *std.ArrayList(Range) = &range_list;
-        defer range_list_ptr.*.clearAndFree();
 
         for (range_maps.items) |map| {
-            var new_list = std.ArrayList(Range).init(alloc);
-
-            for (range_list_ptr.*.items) |range| {
-                var res: std.ArrayList(Range) = try map.convert_range(range, alloc);
-                defer res.clearAndFree();
-                try new_list.appendSlice(try res.toOwnedSlice());
+            for (0..range_list.items.len) |_| {
+                const r = range_list.orderedRemove(0);
+                var res_list: [5]Range = undefined;
+                const res = map.convert_range(r, &res_list);
+                try range_list.appendSlice(res);
+                // print("range_list after appending slice: {any}\n", .{range_list.items});
             }
-            range_list_ptr.*.clearAndFree();
-            range_list_ptr = &new_list;
+            // print("new_list: {any}\n", .{new_list});
+            // range_list_ptr = &new_list;
         }
+        print("range_list: {any}\n", .{range_list.items});
 
         //find lowest range bound
         var low: usize = std.math.maxInt(usize);
-        for (range_list_ptr.*.items) |range| {
+        for (range_list.items) |range| {
+            // print("Range: {any}\n", .{range});
             if (range.start < low) {
                 low = range.start;
             }
@@ -89,6 +94,7 @@ const Range = struct {
     end: usize,
 
     pub fn init(start: usize, len: usize) Range {
+        std.debug.assert(start < start + (len - 1));
         return Range{
             .start = start,
             .end = start + (len - 1),
@@ -177,8 +183,14 @@ const RangeMap = struct {
     // convert a range through the map, splitting if range falls into
     // multiple transform ranges
     // return a list with all ranges
-    pub fn convert_range(self: RangeMap, input_range: Range, alloc: std.mem.Allocator) !std.ArrayList(Range) {
-        var range_list = std.ArrayList(Range).init(alloc);
+    pub fn convert_range(self: RangeMap, input_range: Range, result_list: *[5]Range) []Range {
+        // var result_list = std.ArrayList(Range).init(alloc);
+        // var result_list = std.BoundedArray(Range, 5){};
+        // defer result_list.clearAndFree();
+
+        std.debug.print("Input Range: {any}\n", .{input_range});
+
+        var result_list_len: usize = 0;
 
         for (self.map.keys(), self.map.values()) |transform_range, dest_range| {
 
@@ -197,22 +209,40 @@ const RangeMap = struct {
                     .end = @intCast((dest_end - (src_end - input_end))),
                 };
 
-                try range_list.append(res);
-                return range_list;
+                std.debug.assert(res.start < res.end);
+
+                result_list[result_list_len] = res;
+                result_list_len += 1;
+                return result_list[0..result_list_len];
             }
             // case 2: range overlaps the end of a range but not the start
-            if (input_range.start >= transform_range.start and input_range.end > transform_range.end) {
-                const res = Range{ .start = (dest_range.start + (input_range.start - transform_range.start)), .end = (dest_range.end) };
-                try range_list.append(res);
+            if (input_range.start >= transform_range.start and input_range.end < transform_range.end) {
+                const res = Range{
+                    .start = (dest_range.start + (input_range.start - transform_range.start)),
+                    .end = dest_range.end,
+                };
+                std.debug.assert(res.start < res.end);
+                result_list[result_list_len] = res;
+                result_list_len += 1;
             }
             //case 3: range overlaps with the start of a range but not the end
             if (input_range.start < transform_range.start and (input_range.end <= transform_range.end and input_range.end > transform_range.start)) {
-                const res = Range{ .start = dest_range.start, .end = dest_range.end - (input_range.end - transform_range.end) };
-                try range_list.append(res);
+                const res = Range{
+                    .start = dest_range.start,
+                    .end = dest_range.end - (input_range.end - transform_range.end),
+                };
+                std.debug.assert(res.start < res.end);
+                result_list[result_list_len] = res;
+                result_list_len += 1;
+            }
+
+            if (result_list_len == 0) {
+                result_list[0] = input_range;
+                result_list_len += 1;
             }
         }
 
-        return range_list;
+        return result_list[0..result_list_len];
     }
 
     pub fn print(self: RangeMap) void {
