@@ -2,12 +2,20 @@ const std = @import("std");
 const print = std.debug.print;
 
 // lessons
-// var loc: usize = std.math.maxInt(usize);
-// local variables go out of scope, cant return a list from a function
+// 1. var loc: usize = std.math.maxInt(usize);
+// 2. local variables go out of scope, cant return a list from a function
 // pass in a pointer to a list or slice and modify it
+// 3. keep functions small if possible
+
+var c1n: usize = 0;
+var c1p: usize = 0;
+var c2n: usize = 0;
+var c2p: usize = 0;
+var c3n: usize = 0;
+var c3p: usize = 0;
 
 pub fn main() !void {
-    const buf = @embedFile("test_input.txt");
+    const buf = @embedFile("input.txt");
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const alloc = gpa.allocator();
     defer _ = gpa.deinit();
@@ -50,6 +58,9 @@ pub fn main() !void {
         range_maps.clearAndFree();
     }
 
+    var location_numbers = std.ArrayList(usize).init(alloc);
+    defer location_numbers.clearAndFree();
+
     //
     for (seed_ranges.items) |seed_range| {
         // var range_list = std.BoundedArray(Range, 500){};
@@ -71,7 +82,7 @@ pub fn main() !void {
             // print("new_list: {any}\n", .{new_list});
             // range_list_ptr = &new_list;
         }
-        print("range_list: {any}\n", .{range_list.items});
+        // print("range_list: {any}\n", .{range_list.items});
 
         //find lowest range bound
         var low: usize = std.math.maxInt(usize);
@@ -81,10 +92,25 @@ pub fn main() !void {
                 low = range.start;
             }
         }
-        print("Lowest location number: {d}\n", .{low});
+        try location_numbers.append(low);
+        // print("Lowest location number: {d}\n", .{low});
 
         // print("Converted Range: Start: {d}, End: {d}\n", .{ r.start, r.len });
     }
+    print("c1n: {d}\n", .{c1n});
+    print("c1p: {d}\n", .{c1p});
+    print("c2n: {d}\n", .{c2n});
+    print("c2p: {d}\n", .{c2p});
+    print("c3n: {d}\n", .{c3n});
+    print("c3p: {d}\n", .{c3p});
+
+    var low: usize = std.math.maxInt(usize);
+    for (location_numbers.items) |loc| {
+        if (low > loc) {
+            low = loc;
+        }
+    }
+    print("Final Result: {d}\n", .{low});
 }
 
 // end inclusive range
@@ -157,6 +183,7 @@ const RangeMap = struct {
                 src_range.end = src_range.start + (try std.fmt.parseInt(usize, tok, 10) - 1);
             }
 
+            //assert src and dest ranges are the same length
             std.debug.assert((src_range.end - src_range.start) == (dest_range.end - dest_range.start));
             try map.put(src_range, dest_range);
         }
@@ -181,67 +208,127 @@ const RangeMap = struct {
     }
 
     // convert a range through the map, splitting if range falls into
-    // multiple transform ranges
+    // multiple src ranges
     // return a list with all ranges
     pub fn convert_range(self: RangeMap, input_range: Range, result_list: *[5]Range) []Range {
         // var result_list = std.ArrayList(Range).init(alloc);
         // var result_list = std.BoundedArray(Range, 5){};
         // defer result_list.clearAndFree();
 
-        std.debug.print("Input Range: {any}\n", .{input_range});
+        // std.debug.print("Input Range: {any}\n", .{input_range});
 
         var result_list_len: usize = 0;
 
-        for (self.map.keys(), self.map.values()) |transform_range, dest_range| {
+        // var c1n: usize = 0;
+        // var c1p: usize = 0;
+        // var c2n: usize = 0;
+        // var c2p: usize = 0;
+        // var c3n: usize = 0;
+        // var c3p: usize = 0;
 
-            //some intermediate values may be negative so I cast everything to isize first
-            const input_start: isize = @intCast(input_range.start);
-            const input_end: isize = @intCast(input_range.end);
-            const src_start: isize = @intCast(transform_range.start);
-            const src_end: isize = @intCast(transform_range.end);
-            const dest_start: isize = @intCast(dest_range.start);
-            const dest_end: isize = @intCast(dest_range.end);
+        for (self.map.keys(), self.map.values()) |src_range, dest_range| {
 
             // case 1: input range falls entirely in transform range
-            if (input_range.start >= transform_range.start and input_range.end < transform_range.end) {
-                const res = Range{
-                    .start = @intCast((dest_start + (input_start - src_start))),
-                    .end = @intCast((dest_end - (src_end - input_end))),
-                };
+            if (input_range.start >= src_range.start and input_range.end <= src_range.end) {
+                var res: Range = undefined;
+
+                //negative offset
+                if (src_range.start > dest_range.start) {
+                    res = Range{
+                        .start = input_range.start - (src_range.start - dest_range.start),
+                        .end = input_range.end - (src_range.end - dest_range.end),
+                    };
+                    c1n += 1;
+                }
+                //positive offset
+                else {
+                    res = Range{
+                        .start = input_range.start + (dest_range.start - src_range.start),
+                        .end = input_range.end + (dest_range.end - src_range.end),
+                    };
+                    c1p += 1;
+                }
 
                 std.debug.assert(res.start < res.end);
+                std.debug.print("input: {any}\n", .{input_range});
+                std.debug.print("src: {any}\n", .{src_range});
+                std.debug.print("dest: {any}\n", .{dest_range});
+                std.debug.print("res: {any}\n\n", .{res});
 
                 result_list[result_list_len] = res;
                 result_list_len += 1;
-                return result_list[0..result_list_len];
+                continue;
+                // return result_list[0..result_list_len];
             }
             // case 2: range overlaps the end of a range but not the start
-            if (input_range.start >= transform_range.start and input_range.end < transform_range.end) {
-                const res = Range{
-                    .start = (dest_range.start + (input_range.start - transform_range.start)),
-                    .end = dest_range.end,
-                };
+            if ((input_range.start >= src_range.start and input_range.start < src_range.end) and input_range.end >= src_range.end) {
+                var res: Range = undefined;
+
+                //negative offset
+                if (src_range.start > dest_range.start) {
+                    res = Range{
+                        .start = input_range.start - (src_range.start - dest_range.start),
+                        .end = dest_range.end,
+                    };
+                    c2n += 1;
+                }
+                //positive offset
+                else {
+                    res = Range{
+                        .start = input_range.start + (dest_range.start - src_range.start),
+                        .end = dest_range.end,
+                    };
+                    c2p += 1;
+                }
                 std.debug.assert(res.start < res.end);
+                std.debug.print("input: {any}\n", .{input_range});
+                std.debug.print("src: {any}\n", .{src_range});
+                std.debug.print("dest: {any}\n", .{dest_range});
+                std.debug.print("res: {any}\n\n", .{res});
                 result_list[result_list_len] = res;
                 result_list_len += 1;
             }
             //case 3: range overlaps with the start of a range but not the end
-            if (input_range.start < transform_range.start and (input_range.end <= transform_range.end and input_range.end > transform_range.start)) {
-                const res = Range{
-                    .start = dest_range.start,
-                    .end = dest_range.end - (input_range.end - transform_range.end),
-                };
+            if (input_range.start < src_range.start and (input_range.end <= src_range.end and input_range.end > src_range.start)) {
+                // const res = Range{
+                //     .start = dest_range.start,
+                //     .end = @intCast(dest_end - (input_end - src_end)),
+                // };
+                var res: Range = undefined;
+                //negative offset
+                if (src_range.end > dest_range.end) {
+                    res = Range{
+                        .start = dest_range.start,
+                        .end = input_range.end - (src_range.end - dest_range.end),
+                    };
+                    c3n += 1;
+                }
+                //postive offset
+                else {
+                    res = Range{
+                        .start = dest_range.start,
+                        .end = input_range.end + (dest_range.end - src_range.end),
+                    };
+                    c3p += 1;
+                }
                 std.debug.assert(res.start < res.end);
+                std.debug.print("input: {any}\n", .{input_range});
+                std.debug.print("src: {any}\n", .{src_range});
+                std.debug.print("dest: {any}\n", .{dest_range});
+                std.debug.print("res: {any}\n\n", .{res});
                 result_list[result_list_len] = res;
                 result_list_len += 1;
             }
-
-            if (result_list_len == 0) {
-                result_list[0] = input_range;
+            //case 4: input range subsumes src range
+            if (input_range.start <= src_range.start and input_range.end >= src_range.end) {
+                result_list[result_list_len] = dest_range;
                 result_list_len += 1;
             }
         }
-
+        if (result_list_len == 0) {
+            result_list[0] = input_range;
+            result_list_len += 1;
+        }
         return result_list[0..result_list_len];
     }
 

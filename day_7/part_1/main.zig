@@ -2,14 +2,16 @@ const std = @import("std");
 const print = std.debug.print;
 
 pub fn main() !void {
-    const buf = @embedFile("input.txt");
+    const buf = @embedFile("test_input.txt");
 
     var iter = std.mem.splitScalar(u8, buf, '\n');
 
     var gpa = std.heap.GeneralPurposeAllocator({}){};
+    defer gpa.deinit();
     const alloc = gpa.allocator();
     //track all hands and their ranks
     var hand_map = std.AutoArrayHashMap(Hand, usize).init(alloc);
+    defer hand_map.clearAndFree();
 
     while (iter.next()) |line| {
         if (std.mem.eql(u8, line, "")) {
@@ -52,12 +54,15 @@ const Hand = struct {
     type: hand_type,
 
     // find a hand's type
-    pub fn init(hand: []const u8, bid: usize) Hand {
+    pub fn init(string_hand: []const u8, bid: usize) void {
+        std.debug.assert(string_hand.len == 5);
 
-        var arr = std.BoundedArray(card, 5){};
+        var h_type: hand_type = undefined;
+
+        var hand: [5]card = undefined;
 
         //convert string to array of type: card
-        for (hand) |string_card| {
+        for (string_hand, 0..5) |string_card, i| {
             const c = switch (string_card) {
                 '2' => card.two,
                 '3' => card.three,
@@ -72,16 +77,38 @@ const Hand = struct {
                 'Q' => card.Q,
                 'K' => card.K,
                 'A' => card.A,
-                
             };
 
-            arr.appendAssumeCapacity(c);
+            hand[i] = c;
         }
 
-        for (0..arr.slice().len) |i| {
+        //record types seen
+        var types: []u8 = {};
+        var types_len: u8 = 0;
+        //find type of hand
+        for (hand) |c| {
 
-            for ()
+            var already_seen = false;
+            for (0.. types_len, types) |i, t| {
+                if (c != t and i == types_len) {
+                    types
+                }
+                if (c == t) {
+                    types[i] += 1;
+                    types_len += 1;
+                }
+            }
+            
         }
+        h_type = switch (types) {
+            1 => hand_type.five_of_a_kind,
+            //either four of a kind or full house
+            2 => hand_type.four_of_a_kind,
+            3 => 0,
+            4 => hand_type.one_pair,
+            5 => hand_type.high_card,
+        };
+
     }
 
     pub fn stronger_than(self: Hand, hand: Hand) bool {
@@ -90,9 +117,7 @@ const Hand = struct {
         } else if (self.type < hand.type) {
             return false;
         } else {
-            for (self.hand, hand) |c1, c2| {
-                
-            }
+            for (self.hand, hand) |c1, c2| {}
         }
     }
 };
