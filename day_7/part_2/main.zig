@@ -65,6 +65,7 @@ pub fn main() !void {
 }
 
 const Card = enum(u8) {
+    J,
     two,
     three,
     four,
@@ -74,7 +75,6 @@ const Card = enum(u8) {
     eight,
     nine,
     T,
-    J,
     Q,
     K,
     A,
@@ -105,6 +105,7 @@ const Hand = struct {
         //convert string to array of type: card
         for (string_hand, 0..5) |string_card, i| {
             const c = switch (string_card) {
+                'J' => Card.J,
                 '2' => Card.two,
                 '3' => Card.three,
                 '4' => Card.four,
@@ -114,7 +115,6 @@ const Hand = struct {
                 '8' => Card.eight,
                 '9' => Card.nine,
                 'T' => Card.T,
-                'J' => Card.J,
                 'Q' => Card.Q,
                 'K' => Card.K,
                 'A' => Card.A,
