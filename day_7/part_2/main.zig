@@ -166,7 +166,7 @@ const Hand = struct {
         const alloc = gpa.allocator();
         var card_map = std.AutoArrayHashMap(Card, usize).init(alloc);
         defer card_map.clearAndFree();
-        //find type of hand
+
         for (hand) |c| {
             if (card_map.get(c)) |v| {
                 try card_map.put(c, v + 1);
@@ -175,6 +175,28 @@ const Hand = struct {
             }
         }
 
+        //find max value of map
+        var most_common_card: Card = undefined;
+        var incidence: usize = 0;
+        for (card_map.keys()) |k| {
+            if (k == Card.J) {
+                continue;
+            }
+            if (card_map.get(k)) |v| {
+                if (v > incidence) {
+                    incidence = v;
+                    most_common_card = k;
+                }
+            }
+        }
+
+        // remove jokers from map and add jokers to most common card
+        if (card_map.get(Card.J)) |jokers| {
+            _ = card_map.orderedRemove(Card.J);
+            try card_map.put(most_common_card, incidence + jokers);
+        }
+
+        //find type of hand
         return switch (card_map.count()) {
             5 => HandType.high_card,
             4 => HandType.one_pair,
