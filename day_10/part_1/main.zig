@@ -9,6 +9,14 @@ pub fn main() !void {
 
     var grid = Grid.init(buf, alloc);
     defer grid.deinit();
+
+    var tree = Tree.init(alloc);
+
+    while (!tree.all_leaves_terminate()) {
+        tree.add_leaves(grid.get_adjacent_pos(grid.cursor));
+    }
+
+    return tree.furthest_distance();
 }
 
 const Coord = struct {
@@ -25,38 +33,111 @@ const Coord = struct {
 };
 
 const Cursor = struct {
-    square: u8,
-    coord: Coord,
-    last_pos: Coord,
+    square: u8 = 'S',
+    coord: Coord = Coord{ 0, 0 },
+    last_pos: ?Cursor = null,
 };
 
 const Grid = struct {
     grid: std.ArrayList(std.ArrayList(u8)),
-    cursor: Cursor,
 
     //find valid positions to move to, within 1 square
-    fn get_adjacent_pos(self: Grid) std.BoundedArray(Coord, 8) {
-        var res = try std.BoundedArray(Coord, 8).init(8);
-        const north = Coord{ self.cursor.coord.x, self.cursor.coord.y + 1 };
-        const south = Coord{ self.cursor.coord.x, self.cursor.coord.y - 1 };
-        const east = Coord{ self.cursor.coord.x + 1, self.cursor.coord.y };
-        const west = Coord{ self.cursor.coord.x - 1, self.cursor.coord.y };
-        res.appendSliceAssumeCapacity(switch (self.cursor.square) {
-            '-' => [_]Coord{ east, west },
-            '|' => [_]Coord{ north, south },
-            '.' => [_]Coord{},
-            'L' => [_]Coord{ north, west },
-            'J' => [_]Coord{ east, north },
-            '7' => [_]Coord{ south, west },
-            'F' => [_]Coord{ south, east },
-            else => [_]Coord{},
+    fn get_adjacent_pos(self: Grid, cursor: Cursor) std.BoundedArray(Cursor, 8) {
+        var res = try std.BoundedArray(Cursor, 8).init(8);
+        const north = Coord{ cursor.coord.x, cursor.coord.y + 1 };
+        const south = Coord{ cursor.coord.x, cursor.coord.y - 1 };
+        const east = Coord{ cursor.coord.x + 1, cursor.coord.y };
+        const west = Coord{ cursor.coord.x - 1, cursor.coord.y };
+        res.appendSliceAssumeCapacity(switch (cursor.square) {
+            '-' => [_]Cursor{
+                Cursor{
+                    .square = '-',
+                    .coord = east,
+                    .last_pos = cursor,
+                },
+                Cursor{
+                    .square = '-',
+                    .coord = west,
+                    .last_pos = cursor,
+                },
+            },
+            '|' => [_]Cursor{
+                Cursor{
+                    .square = '|',
+                    .coord = north,
+                    .last_pos = cursor,
+                },
+                Cursor{
+                    .square = '|',
+                    .coord = south,
+                    .last_pos = cursor,
+                },
+            },
+            'L' => [_]Cursor{
+                Cursor{
+                    .square = 'L',
+                    .coord = north,
+                    .last_pos = cursor,
+                },
+                Cursor{
+                    .square = 'L',
+                    .coord = west,
+                    .last_pos = cursor,
+                },
+            },
+            'J' => [_]Cursor{
+                Cursor{
+                    .square = 'J',
+                    .coord = east,
+                    .last_pos = cursor,
+                },
+                Cursor{
+                    .square = 'J',
+                    .coord = north,
+                    .last_pos = cursor,
+                },
+            },
+            '7' => [_]Cursor{
+                Cursor{
+                    .square = '7',
+                    .coord = south,
+                    .last_pos = cursor,
+                },
+                Cursor{
+                    .square = '7',
+                    .coord = west,
+                    .last_pos = cursor,
+                },
+            },
+            'F' => [_]Cursor{
+                Cursor{
+                    .square = 'F',
+                    .coord = south,
+                    .last_pos = cursor,
+                },
+                Cursor{
+                    .square = 'F',
+                    .coord = east,
+                    .last_pos = cursor,
+                },
+            },
+            else => [_]Cursor{},
         });
 
-        // remove last position (because we came from there)
-        for (res.slice(), 0..res.slice(0).len) |c, i| {
-            if (c.eql(self.last_pos)) {
+        // remove last position (because we came from there) and filter invalid
+        // coords
+        for (res.slice(), 0..res.slice().len) |c, i| {
+            if (c.eql(cursor.last_pos)) {
                 res.swapRemove(i);
             }
+            if (c.coord.x < 0 or c.coord.y < 0) {
+                res.swapRemove(i);
+            }
+        }
+
+        //assign squares
+        for (res.slice()) |*c| {
+            c.square = self.grid.items[c.coord.x].items[c.coord.y];
         }
         return res;
     }
@@ -106,34 +187,45 @@ const Grid = struct {
     }
 };
 
-const Tnode = struct {
-    leaves: std.BoundedArray(Tnode, 4),
-    terminus: bool = true,
-    distance: usize = 1, // distance from root
-    square: u8,
-
-    fn add_leaf(self: Tree, square: u8, alloc: std.mem.Allocator) !void {
-        try self.leaves.append(Tnode{
-            .square = square,
-            .distance = self.distance + 1,
-            .terminus = true,
-            .leaves = try std.BoundedArray(Tnode, 4).init(alloc),
-        });
-        self.terminus = false;
-    }
-};
-
+//Tree
+// instance of Tree doubles as tree node
 const Tree = struct {
-    leaves: std.BoundedArray(Tnode, 4),
+    leaves: std.BoundedArray(Tree, 4),
+    root: bool = true,
+    terminus: bool = false, // true if there is no more of the grid to walk
+    distance: usize = 0, //distance cannot be > 0 if root is true
+    square: u8 = 'S',
+    coord: Coord = Coord{ 0, 0 },
+
+    fn init(alloc: std.mem.Allocator) Tree {
+        return Tree{
+            .leaves = std.BoundedArray(Tree, 4).init(alloc),
+        };
+    }
 
     fn add_leaf(self: Tree, square: u8, alloc: std.mem.Allocator) !void {
-        try self.leaves.append(Tnode{
-            .square = square,
+        try self.leaves.append(Tree{
+            .leaves = try std.BoundedArray(Tree, 4).init(alloc),
+            .root = false,
             .distance = self.distance + 1,
-            .terminus = true,
-            .leaves = try std.BoundedArray(Tnode, 4).init(alloc),
+            .square = square,
         });
     }
 
-    fn all_leaves_terminate(self: Tree) bool {}
+    fn all_leaves_terminate(self: Tree) bool {
+        var terminates = true;
+        for (self.leaves) |leaf| {
+            if (leaf.terminus == false) {
+                terminates = false;
+            }
+        }
+        if (terminates) {
+            return true;
+        } else {
+            for (self.leaves) |leaf| {
+                terminates = leaf.all_leaves_terminate();
+            }
+        }
+        return terminates;
+    }
 };
