@@ -2,11 +2,12 @@ const std = @import("std");
 const print = std.debug.print;
 
 pub fn main() !void {
-    const buf = @embedFile("input.txt");
+    const buf = @embedFile("test_input.txt");
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const alloc = gpa.allocator();
 
+    //
     var dir_map = std.StringHashMap(Fork).init(alloc);
     defer dir_map.clearAndFree();
 
@@ -42,8 +43,19 @@ pub fn main() !void {
     print("Node List Length: {d}\n", .{node_list.items.len});
 
     //records steps to Z for each node
-    //ex node 1 reaches Z at step 5, 10, 16, 23, etc
-    var steps_to_z = try std.ArrayList(try std.ArrayList(usize).initCapacity(alloc, 100)).initCapacity(alloc, 100);
+    //ex: node 1 reaches Z at step 5, 10, 16, 23, etc
+    // when all items have a common multiple (ex: 5, 10, 15 ) the lowest number
+    // is the final answer
+    var steps_to_z = try std.ArrayList(std.ArrayList(usize)).initCapacity(alloc, 100);
+
+    // var steps_to_z = try std.ArrayList(usize).initCapacity(alloc, 100);
+    // defer steps_to_z.clearAndFree();
+    defer {
+        for (steps_to_z.items) |*arr| {
+            arr.clearAndFree();
+        }
+        steps_to_z.clearAndFree();
+    }
 
     // const goal = "ZZZ";
     // var curr_place: []const u8 = "AAA";
@@ -53,12 +65,16 @@ pub fn main() !void {
         // const fork = dir_map.get(curr_place).?;
         // print("dir: {c}\n", .{dir});
         // print("fork: {any}\n", .{fork});
-        print("##Node List: {d}\n", .{steps});
-        for (steps_to_z.items) |step_count| {
-            print("Step count: {d}\n", .{step_count});
-        }
 
         all_ends_with_z = transform(steps, &steps_to_z, &node_list, dir_map, directions.next_dir());
+
+        print("##Node List: {d}\n", .{steps});
+        for (steps_to_z.items) |step_count_arr| {
+            for (step_count_arr.items) |step_count| {
+                print("Step count: {d}", .{step_count});
+            }
+            print("\n", .{});
+        }
 
         print("\n", .{});
         steps += 1;
@@ -108,7 +124,7 @@ const Fork = struct {
 //     return true;
 // }
 
-fn transform(step_count: usize, z_list: *std.ArrayList(std.ArrayList(usize)), arr: *std.ArrayList([]const u8), dir_map: std.StringHashMap(Fork), dir: u8) bool {
+fn transform(step_count: usize, steps_to_z: *std.ArrayList(std.ArrayList(usize)), arr: *std.ArrayList([]const u8), dir_map: std.StringHashMap(Fork), dir: u8) bool {
     var ends_with_z = true;
     for (0..arr.items.len, arr.items) |i, node| {
         const fork = dir_map.get(node).?;
@@ -125,7 +141,7 @@ fn transform(step_count: usize, z_list: *std.ArrayList(std.ArrayList(usize)), ar
         if (!std.mem.endsWith(u8, res, "Z")) {
             ends_with_z = false;
         } else {
-            z_list.items[i].appendAssumeCapacity(step_count);
+            steps_to_z.items[i].appendAssumeCapacity(step_count);
         }
     }
     return ends_with_z;
